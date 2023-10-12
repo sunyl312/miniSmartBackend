@@ -257,7 +257,6 @@ class mysqlUtils():
         if res == None:
             return []
         else:
-
             return res
 
     def select_taxon_name_by_taxonid(self, taxid):
@@ -966,8 +965,8 @@ def generate_sra(target_db, projectid, CRR_data):
         adddata.appendChild(oneAttr)
 
     try:
-        PRJNAacc = sq.FetchAccession("PRJCAacc", projectid)
-        if PRJNAacc == None or PRJNAacc["PRJNAacc"] == None or PRJNAacc["PRJNAacc"] == "":
+        PRJNAacc = sq.fetchPRJNAfromCRR(projectid)
+        if PRJNAacc == None or PRJNAacc["SRA_PRJ_ACC"] == None or PRJNAacc["SRA_PRJ_ACC"] == "":
             PrjAttributeRefId = doc.createElement("AttributeRefId")
             PrjAttributeRefId.setAttribute("name", "BioProject")
             PrjRefId = doc.createElement("RefId")
@@ -978,13 +977,13 @@ def generate_sra(target_db, projectid, CRR_data):
             PrjAttributeRefId.appendChild(PrjRefId)
             adddata.appendChild(PrjAttributeRefId)
 
-        elif str(PRJNAacc["PRJNAacc"]).startswith("PRJNA"):
+        elif str(PRJNAacc["SRA_PRJ_ACC"]).startswith("PRJNA"):
             PrjAttributeRefId = doc.createElement("AttributeRefId")
             PrjAttributeRefId.setAttribute("name", "BioProject")
             PrjRefId = doc.createElement("RefId")
             PrjSPUID = doc.createElement("PrimaryId")
             PrjSPUID.setAttribute("db", "BioProject")
-            PrjSPUID.appendChild(doc.createTextNode(str(PRJNAacc["PRJNAacc"])))
+            PrjSPUID.appendChild(doc.createTextNode(str(PRJNAacc["SRA_PRJ_ACC"])))
             PrjRefId.appendChild(PrjSPUID)
             PrjAttributeRefId.appendChild(PrjRefId)
             adddata.appendChild(PrjAttributeRefId)
@@ -997,8 +996,8 @@ def generate_sra(target_db, projectid, CRR_data):
         print(e)
 
     try:
-        SAMNacc = sq.FetchAccession("SAMCacc", CRR_data['sam_acc'])
-        if SAMNacc == None or SAMNacc["SAMNacc"] == None or SAMNacc["SAMNacc"] == "":
+        SAMNacc = sq.fetchSAMNfromCRR(CRR_data['sam_acc'])
+        if SAMNacc == None or SAMNacc["SRA_SAMPLE"] == None or SAMNacc["SRA_SAMPLE"] == "":
             SamAttributeRefId = doc.createElement("AttributeRefId")
             SamAttributeRefId.setAttribute("name", "BioSample")
             SamRefId = doc.createElement("RefId")
@@ -1012,7 +1011,7 @@ def generate_sra(target_db, projectid, CRR_data):
 
         else:
             SamAttributeRefId = generate_known_biosample(
-                str(SAMNacc["SAMNacc"]))
+                str(SAMNacc["SRA_SAMPLE"]))
             adddata.appendChild(SamAttributeRefId)
 
     except Exception as e:
@@ -1131,10 +1130,17 @@ def generate_by_craacc(cra_acc):
 
     doc.appendChild(Submission)
 
-    fp = open(out, 'w')
-    # doc.writexml(fp, indent='\t', addindent='\t', newl='\n', encoding="utf-8")
-    # fp = open(f"{cra_acc}.xml", 'w')
+    crapath = "/workspace/project/GSA/GSA2SRA/" + \
+        str(cra_acc) + "/submission.xml"
+
+    fp = open("{}".format(crapath), 'w')
     doc.writexml(fp, indent='\t', addindent='\t', newl='\n', encoding="utf-8")
+
+
+    # fp = open(out, 'w')
+    # # doc.writexml(fp, indent='\t', addindent='\t', newl='\n', encoding="utf-8")
+    # # fp = open(f"{cra_acc}.xml", 'w')
+    # doc.writexml(fp, indent='\t', addindent='\t', newl='\n', encoding="utf-8")
 
     return True
 
@@ -1152,7 +1158,7 @@ if __name__ == "__main__":
 
     generate_by_craacc(args.input, args.output)
 
-# if __name__=="__main__":
+if __name__=="__main__":
 
     # parser = argparse.ArgumentParser(prog="Convert GSA meta to xml with SRA format.")
 
@@ -1227,4 +1233,4 @@ if __name__ == "__main__":
 
     # fp = open(args.output, 'w')
     # doc.writexml(fp, ndent='\t', addindent='\t', newl='\n', encoding="utf-8")
-    # generate_by_craacc("CRA008976")
+    generate_by_craacc("CRA008976")

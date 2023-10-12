@@ -129,6 +129,7 @@ class sqlite3db():
         self.createINDEX()
 
     def innsertCRRtable(self, eachcrr):
+        # print(eachcrr)
         if not (any(item.startswith("PRJNA") for item in eachcrr) or any(item.startswith("SAMN") for item in eachcrr)):
             sql = """
                 insert into CRR(
@@ -172,6 +173,7 @@ class sqlite3db():
                     )VALUES (
                     ?,?,?,?,?,?,?,?
                     );'''
+        # print(sql)
         self.execute(sql=sql, params=eachcrr)
         self.commit()
 
@@ -228,14 +230,29 @@ class sqlite3db():
         res = self.fetchall()
         self.commit()
         return res
+    
+    def fetchallsubmissionInTASK(self):
+        sql='''
+select * from TASK;'''
+        res=self.conn.execute(sql).fetchall()
+        return res
 
-    def fetchfromTASKbyPageSort(self,page_number,page_size,sort_value,sort_type):
+    def fetchfromTASKbyPageSort(self,page_number,page_size,sort_value,sort_type,filter_item,filter_value):
+        print(page_number,page_size,sort_value,sort_type,filter_item,filter_value)
         start=(page_number-1)* page_size
         if sort_value!="" and sort_type!="":
-            sql=f'''
-            select * from TASK ORDER BY {sort_value} {sort_type} limit {start},{page_size};'''
-        else:
-            sql=f'''
+            if filter_value in [0,1,2,3,4]:
+                sql=f'''
+            select * from TASK  where SUBMIT_STATUS={filter_value} ORDER BY {sort_value} {sort_type} limit {start},{page_size};'''
+            else:
+                sql=f'''
+                select * from TASK ORDER BY {sort_value} {sort_type} limit {start},{page_size};'''
+        elif sort_value=="" and sort_type=="":
+            if filter_value in [0,1,2,3,4]:
+                sql=f'''
+                select * from TASK  where SUBMIT_STATUS={filter_value} limit {start},{page_size};'''
+            else:
+                sql=f'''
             select * from TASK  limit {start},{page_size};'''
         res=self.conn.execute(sql).fetchall()
         return res
@@ -246,18 +263,28 @@ class sqlite3db():
 """
         sraprj_acc=self.conn.execute(sql).fetchone()
         self.commit()
+        if sraprj_acc==None:
+            sraprj_acc={'SRA_PRJ_ACC': None}
         return sraprj_acc
+    
+    # def fetchAccessionInCRR(self,acctype,acc):
+    #     sql=f'''
+    #         select distinct(*) from CRR where {acctype}="{acc}";'''
+    #     res=self.conn.execute(sql).fetchone()
+    #     return res
     
     def fetchSAMNfromCRR(self,acc):
         sql=f'''
         select distinct(SRA_SAMPLE) from CRR where SAMC_ACC="{acc}";'''
         srasamn_acc=self.conn.execute(sql).fetchone()
         self.commit()
+        if srasamn_acc==None:
+            srasamn_acc={'SRA_SAMPLE': None}
         return srasamn_acc
         
     def fetchaccessionInTASK(self):
         sql = '''
-select CRA_ACC from TASK where SUBMIT_STATUS!=4;'''
+select CRA_ACC from TASK;'''
         self.execute(sql)
         res = self.fetchall()
         # return res
@@ -380,19 +407,23 @@ LEFT JOIN LOCK l ON c.SAMC_ACC = l.SAMC_ACC AND c.PRJC_ACC = l.PRJC_ACC;'''
     def updateCRAincrr(self, SRX,SRR,SRA,SUBMISSION,CRRacc):
         sql = """
         update CRR set SRA_SRX="{}",SRA_SRR="{}",SRA_SRA="{}",SRA_SUBMISSION="{}" where CRR_ACC="{}";""".format(SRX,SRR,SRA,SUBMISSION,CRRacc)
-        print(sql)
-        # self.execute(sql)
-        # self.commit()
+        # print(sql)
+        self.execute(sql)
+        self.commit()
 
     def updatePRJinCRR(self,sraprj,gsaprj):
         sql=f'''
-            update CRR set SRA_SAMPLE="{sraprj}" where SAMC_ACC="{gsaprj}";'''
-        print(sql)
+            update CRR set SRA_PRJ_ACC="{sraprj}" where PRJC_ACC="{gsaprj}";'''
+        self.execute(sql)
+        self.commit()
+
     
     def updateSAMPLEinCRR(self,srasamc,gsasamc):
         sql=f'''
-            update CRR set SRA_PRJ_ACC="{srasamc}" where PRJC_ACC="{gsasamc}";'''
-        print(sql)
+            update CRR set SRA_SAMPLE="{srasamc}" where SAMC_ACC="{gsasamc}";'''
+        self.execute(sql)
+        self.commit()
+
 
     def updateTASKtable(self, statustype, status, acc):
         sql = f"""
@@ -418,13 +449,13 @@ if __name__ == "__main__":
     # res2=sq.fetchfromTASKbyPageSort(1,2,"","")
     # print(res1)
     # print(res2)
-    idList={"page_number":1,"page_size":2,"sort_value":'',"sort_type":''}
-    page_number=idList["page_number"]
-    page_size=idList["page_size"]
-    sort_value=idList["sort_value"]
-    sort_type=idList["sort_type"]
-    res2=sq.fetchfromTASKbyPageSort(page_number,page_size,sort_value,sort_type)
-    print(res2)
+    # idList={"page_number":1,"page_size":2,"sort_value":'',"sort_type":''}
+    # page_number=idList["page_number"]
+    # page_size=idList["page_size"]
+    # sort_value=idList["sort_value"]
+    # sort_type=idList["sort_type"]
+    # res2=sq.fetchfromTASKbyPageSort(page_number,page_size,sort_value,sort_type)
+    # print(res2)
     # a = sq.fetchfromCRR("CRR_ACC", "CRR000061")
     # a = sq.fetchfromTASK("CRA000005")
     # print(len(a))
@@ -463,3 +494,7 @@ if __name__ == "__main__":
     #     formatted_result[cra_acc] = data
 
     # print(formatted_result)
+    sra_samn=sq.fetchSAMNfromCRR("SAMC000206")
+    sra_prjna=sq.fetchPRJNAfromCRR("PRJCA020116")
+    print(sra_samn["SRA_SAMPLE"])
+    print(sra_prjna["SRA_PRJ_ACC"])

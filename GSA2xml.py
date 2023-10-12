@@ -7,6 +7,9 @@ import logging
 import argparse
 import sys
 import json 
+from UserPackage import UserPackage
+
+gsaloginfo = UserPackage("gsadb")
 
 logging.basicConfig(level=logging.INFO,format="[%(levelname)s %(asctime)s] %(message)s")
 
@@ -29,11 +32,11 @@ class mysqlUtils():
 
     def __init__(self):
 
-        self.host = "192.168.132.11"
-        self.port = "33067"
-        self.username =  "gsasunyl"
-        self.password =  "gsasunyl123"
-        self.dbname = "big_gsav2_20190729_1"
+        self.host = gsaloginfo["username"]
+        self.port = gsaloginfo["port"]
+        self.username = gsaloginfo["username"]
+        self.password = gsaloginfo["password"]
+        self.dbname = gsaloginfo["dbname"]
         self.charsets =  "UTF8"
 
         try:

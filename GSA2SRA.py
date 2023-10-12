@@ -52,7 +52,9 @@ def InsertData2Sqlite():  # 处理扫描数据的需求，判断哪些数据是
     release_data2SRA = gsautilis.ScanData2SRA()
     test = []  #这个是暂时用的，为了防止数据过大，反复插入，所有用test取特定的cra
     for i in release_data2SRA:
-        if i["CRAacc"] == "CRA012787":
+        # if i["CRAacc"] == "CRA010500":
+        #     test.append(i)
+        if i["CRAacc"] == "CRA012786":
             test.append(i)
 
     crr, cra, samc = formCRR(test)
@@ -61,18 +63,21 @@ def InsertData2Sqlite():  # 处理扫描数据的需求，判断哪些数据是
     current_time = currenttime()
     newcrr = []
     for eachline in crr:  # crr数据每行判断，如果没有的就插入，如果有的就跳过
+        # print(eachline)
         sra_samn=sq.fetchSAMNfromCRR(eachline["SAMC_ACC"])
         sra_prjna=sq.fetchPRJNAfromCRR(eachline["PRJC_ACC"])
+        eachcrr=[]
         try:
-            if sra_samn==None and sra_prjna==None:
-                eachcrr = [eachline["CRA_ACC"], eachline["CRR_ACC"], eachline["CRX_ACC"],
-                        eachline["SAMC_ACC"], eachline["PRJC_ACC"], eachline["SAMPLE_type"], eachline["archive_path"]]
-            elif sra_samn!=None and sra_prjna!=None:
-                eachcrr = [eachline["CRA_ACC"], eachline["CRR_ACC"], eachline["CRX_ACC"],
-                        eachline["SAMC_ACC"], eachline["PRJC_ACC"], eachline["SAMPLE_type"], eachline["archive_path"],sra_prjna["SRA_PRJ_ACC"],sra_prjna["SRA_SAMPLE"]]
-            elif sra_samn==None and sra_prjna!=None:
-                eachcrr = [eachline["CRA_ACC"], eachline["CRR_ACC"], eachline["CRX_ACC"],
-                        eachline["SAMC_ACC"], eachline["PRJC_ACC"], eachline["SAMPLE_type"], eachline["archive_path"],sra_prjna["SRA_PRJ_ACC"]]
+            if sra_samn["SRA_SAMPLE"] ==None and sra_prjna["SRA_PRJ_ACC"] ==None :
+                # print("aaaaaaaaaaaaaa")
+                eachcrr.extend([eachline["CRA_ACC"], eachline["CRR_ACC"], eachline["CRX_ACC"],
+                        eachline["SAMC_ACC"], eachline["PRJC_ACC"], eachline["SAMPLE_type"], eachline["archive_path"]])
+            elif sra_samn["SRA_SAMPLE"] !=None and sra_prjna["SRA_PRJ_ACC"] !=None:
+                eachcrr.extend([eachline["CRA_ACC"], eachline["CRR_ACC"], eachline["CRX_ACC"],
+                        eachline["SAMC_ACC"], eachline["PRJC_ACC"], eachline["SAMPLE_type"], eachline["archive_path"],sra_prjna["SRA_PRJ_ACC"],sra_prjna["SRA_SAMPLE"]])
+            elif sra_samn["SRA_SAMPLE"] ==None and sra_prjna["SRA_PRJ_ACC"] !=None:
+                eachcrr.extend([eachline["CRA_ACC"], eachline["CRR_ACC"], eachline["CRX_ACC"],
+                        eachline["SAMC_ACC"], eachline["PRJC_ACC"], eachline["SAMPLE_type"], eachline["archive_path"],sra_prjna["SRA_PRJ_ACC"]])
             # elif sra_samn!=None and sra_prjna==None: #应该暂时没有这种情况
             #     eachcrr = [eachline["CRA_ACC"], eachline["CRR_ACC"], eachline["CRX_ACC"],
             #             eachline["SAMC_ACC"], eachline["PRJC_ACC"], eachline["SAMPLE_type"], eachline["archive_path"],sra_prjna["SRA_SAMPLE"]]
@@ -95,8 +100,11 @@ def InsertData2Sqlite():  # 处理扫描数据的需求，判断哪些数据是
     cra = list(cra)
     # 计算在lock表中有的cra，但是在最新的cra表格中没有，后续将通过修改状态为4的方式，将其暂时锁定
     extra_item_in_lock = [item for item in cra_in_lock if item not in cra]
+    print(extra_item_in_lock)
     newcra = []
+    lock_failed=[]
     for eachcra in cra:
+        print(eachcra)
         # 查询数据是否在表格中，如果不在，则插入，如果在，但是之前锁定了，就重新再打开
         res = sq.fetchfromTASK(str(eachcra))
         # print(res)
@@ -122,7 +130,12 @@ def InsertData2Sqlite():  # 处理扫描数据的需求，判断哪些数据是
         result["adddata"]["lockdata"] = {
             "status": True, "accession": extra_item_in_lock, "number": len(extra_item_in_lock)}
         for eachcra in extra_item_in_lock:
-            sq.updateTASKtable("SUBMIT_STATUS", 4, str(eachcra))
+            res = sq.fetchfromTASK(str(eachcra))
+            if res[0]["SUBMIT_STATUS"] ==1 or res[0]["SUBMIT_STATUS"]==2:
+                lock_failed.append(str(eachcra))
+                pass
+            else:
+                sq.updateTASKtable("SUBMIT_STATUS", 4, str(eachcra))
     else:
         result["adddata"]["lockdata"] = {
             "status": False, "accession": "无新增数据", "number": 0}
@@ -143,8 +156,15 @@ def InsertData2Sqlite():  # 处理扫描数据的需求，判断哪些数据是
     else:
         result["adddata"]["LOCK"] = {"status": False,
                                      "accession": "无新增数据", "number": 0}
+        
+    if len(lock_failed)!=0:
+        result["adddata"]["LOCKFailed"] = {"status": True,
+                                     "accession": lock_failed, "number": len(lock_failed)}
+    else:
+        result["adddata"]["LOCKFailed"] = {"status": False,
+                                     "accession": "无新增数据", "number": 0}
 
-    if result["adddata"]["LOCK"]["number"] != 0 or result["adddata"]["CRR"]["number"] != 0 or result["adddata"]["LOCK"]["number"] != 0 or result["adddata"]["CRR"]["number"] != 0:
+    if result["adddata"]["LOCK"]["number"] != 0 or result["adddata"]["CRR"]["number"] != 0 or result["adddata"]["LOCK"]["number"] != 0 or result["adddata"]["CRR"]["number"] != 0 or result["adddata"]["LOCKFailed"]["number"]:
         result["status"] = True
     return result
 
@@ -207,6 +227,58 @@ def PrepareReady(CRAacc):
     else:
         pass
 
+def TASKstatus(CRAacc):
+    result={}
+    allstatus=sq.fetchfromTASK(CRAacc)[0]
+    result["XML_STATUS"]=allstatus["XML_STATUS"]
+    result["FQ_STATUS"]=allstatus["FQ_STATUS"]
+    result["UPLOAD_XML"]=allstatus["UPLOAD_XML"]
+    result["SUBMIT_STATUS"]=allstatus["SUBMIT_STATUS"]
+    result["REPORT_XML_STATUS"]=allstatus["REPORT_XML_STATUS"]
+    result["XML_STATUS"]=allstatus["XML_STATUS"]
+    return result
+
+def DetectFqTransfer(CRAacc):
+    nohup_command=f'bash {"/workspace/project/GSA/GSA2SRA/" +CRAacc +"/ascpsubmitfq.sh"}' 
+    command = f'ps aux |grep -w "{nohup_command}" |grep -v grep'
+    popen =subprocess.Popen(command,shell=True,stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    out,err = popen.communicate()
+    if out: #不为空，表示程序正在运行
+        return {"status":True,"msg":"程序正在运行"}
+    elif err:
+        return {"status":False,"msg":str}
+    else:
+        return {"status":True,"msg":"程序运行完成"}
+
+def CRAinTASKstatistic():
+    res=sq.fetchallsubmissionInTASK()
+    result={"all":{"CRA_ACC":[],"number":""},
+            "unsubmit":{"CRA_ACC":[],"number":""},
+            "submitting":{"CRA_ACC":[],"number":""},
+            "succeed":{"CRA_ACC":[],"number":""},
+            "failed":{"CRA_ACC":[],"number":""},
+            "unablesubmit":{"CRA_ACC":[],"number":""}}
+    for i in res:
+        result["all"]["CRA_ACC"].append(i["CRA_ACC"])
+        if i["SUBMIT_STATUS"]==0:
+            result["unsubmit"]["CRA_ACC"].append(i["CRA_ACC"])
+        elif i["SUBMIT_STATUS"]==1:
+            result["submitting"]["CRA_ACC"].append(i["CRA_ACC"])
+        elif i["SUBMIT_STATUS"]==2:
+            result["succeed"]["CRA_ACC"].append(i["CRA_ACC"])
+        elif i["SUBMIT_STATUS"]==3:
+            result["failed"]["CRA_ACC"].append(i["CRA_ACC"])
+        elif i["SUBMIT_STATUS"]==4:
+            result["unablesubmit"]["CRA_ACC"].append(i["CRA_ACC"])
+    
+    result["all"]["number"]=len(result["all"]["CRA_ACC"])
+    result["unsubmit"]["number"]=len(result["unsubmit"]["CRA_ACC"])
+    result["submitting"]["number"]=len(result["submitting"]["CRA_ACC"])
+    result["succeed"]["number"]=len(result["succeed"]["CRA_ACC"])
+    result["failed"]["number"]=len(result["failed"]["CRA_ACC"])
+    result["unablesubmit"]["number"]=len(result["unablesubmit"]["CRA_ACC"])
+    return result
+
 def ParaseReportXML(CRAacc):
     result = {
         "submission":{},
@@ -216,13 +288,19 @@ def ParaseReportXML(CRAacc):
         "SRA":""
     }
     task_path = sq.fetchfromTASK(CRAacc)[0]["TASK_PATH"]
+    # print(sq.fetchfromTASK(CRAacc))
     report_xml=task_path +"/report.xml"
 
     et=ET.iterparse(report_xml)
     for event,elem in et:  #event是end，elem是action,
         if event=="end" and elem.tag=="SubmissionStatus":
-            submissionid = elem.get("submission_id")
-            result["submission"]=submissionid
+            status=elem.get("status")
+            if status=="failed":
+                Message=elem.find("Message").get("severity") +":" + elem.find("Message").text
+                result["submission"]=Message
+            else:
+                submissionid = elem.get("submission_id")
+                result["submission"]=submissionid
 
         elif event =="end" and elem.tag =="Action":
             target_db = elem.get("target_db")
@@ -317,6 +395,11 @@ def ReportXMLStatusCheck(CRAacc):
     for eachcrr in result["CRR"]:
         crr_status.append(eachcrr["status"])
 
+    print(result["submission"])
+
+    if not result["submission"].startswith("SUB"):
+        return {"status":False}
+
     if result["project"]["status"]!="processed-ok" or "processed-error" in sample_status:
         return {"status":False}
     elif result["project"]["status"]=="processed-ok" and  "processed-error" not in sample_status:
@@ -354,6 +437,7 @@ def CRRaccUpdate(CRAacc):
         sq.updateCRAincrr(eachCRR["SRXacc"],eachCRR["SRRacc"],sra,submission,eachCRR["CRRacc"])
 
 def step1XMLprepare(CRAacc):
+    current_time = currenttime()
     status = is_PRJ_SAMC_acc_lock(CRAacc) #判断cra中的sample和project是否有lock的，如果有，则不可以提交
     if status == True:
         crapath = generateTaskPath(CRAacc)
@@ -364,6 +448,7 @@ def step1XMLprepare(CRAacc):
             submission_xml_status=XMLgenerate(CRAacc)["status"]  # 在task路径下生成下xml
             if submission_xml_status==True: 
                 sq.updateTASKtable("XML_STATUS", 1, CRAacc)  # 将xml——status的状态修改为1
+                sq.updateTASKtable("MODIFY_TIME", current_time, CRAacc) #将modify_time的时间修改
                 res = sq.fetchPrjSamcAccandStatusByCRAacc(CRAacc)
                 prj = {"PRJC_ACC": "", "SRA_PRJ_ACC": "", "IS_PRJC_LOCK": ""}
                 samc = []
@@ -391,34 +476,40 @@ def step2fqtransfer(CRAacc):
     task_path = sq.fetchfromTASK(CRAacc)[0]["TASK_PATH"]
     xml_status = sq.fetchfromTASK(CRAacc)[0]["SUBMIT_STATUS"]
     fq_status = sq.fetchfromTASK(CRAacc)[0]["FQ_STATUS"]
-
-    if xml_status != 0 and fq_status!=2:
+    current_time = currenttime()
+    if xml_status != 0 and fq_status==2:
         sq.updateTASKtable("FQ_STATUS",1,CRAacc)
-        command = f'ascp -i {sra["key"]} -QT -l300m -k1 -d  $(ls {cra_path}/*/*{{.gz,.bam}} 2>/dev/null) {sra["remotepath"]}/{CRAacc} && python3 /workspace/project/GSA/setFileTransStatus.py {CRAacc} GOOD || python3 /workspace/project/GSA/setFileTransStatus.py {CRAacc} BAD &> {task_path}/file_transfer.log'
-
-        with open(task_path+"/submitfq.sh","w") as f:
+        command = f'ascp -i {sra["key"]} -QT -l300m -k1 -d  $(ls {cra_path}/*/*{{.gz,.bam}} 2>/dev/null) {sra["remotepath"]}/{CRAacc}  &> {task_path}/file_transfer.log && python3 /workspace/project/GSA/setFileTransStatus.py {CRAacc} GOOD || python3 /workspace/project/GSA/setFileTransStatus.py {CRAacc} BAD'
+        with open(task_path+"/ascpsubmitfq.sh","w") as f:
             f.write(command)
-        nohup_command=f'nohup bash {task_path+"/submitfq.sh"} &' 
+        nohup_command=f'nohup bash {task_path+"/ascpsubmitfq.sh"} &' 
         subprocess.Popen(nohup_command, shell=True)
+        sq.updateTASKtable("MODIFY_TIME", current_time, CRAacc)
     else:
-        return {"status": False,"msg":"fq文件无需传输"}
+        return False
+    #     return {"status": True,"msg":"fq文件传输完成"}
+    # else:
+    #     return {"status": False,"msg":"fq文件无需传输"}
     
 def step3submissionSubmit(CRAacc):
     xml_status = sq.fetchfromTASK(CRAacc)[0]["SUBMIT_STATUS"]
     fq_status = sq.fetchfromTASK(CRAacc)[0]["FQ_STATUS"]
     task_path = sq.fetchfromTASK(CRAacc)[0]["TASK_PATH"]
+    current_time = currenttime()
     if xml_status==1 and fq_status==2:
         PrepareReady(CRAacc)
         command = f'ascp -i {sra["key"]} -QT -l300m -k1 -d  {task_path}/submi*  {sra["remotepath"]}/{CRAacc}'
         subprocess.Popen(command, shell=True)
         sq.updateTASKtable("UPLOAD_XML",1,CRAacc)
-        return True
+        sq.updateTASKtable("MODIFY_TIME", current_time, CRAacc)
+        return {"status": True,"msg":"submission.xml和submit.ready文件传输完成"}
     else:
-        return False
+        return {"status": False,"msg":"submission.xml和submit.ready文件无需传输"}
 
 def step4DownloadParseReport(CRAacc):
     task_path = sq.fetchfromTASK(CRAacc)[0]["TASK_PATH"]
     report_xml=task_path +"/report.xml"
+    current_time = currenttime()
     max_try=10
     while True:
         if max_try <=0:
@@ -432,7 +523,6 @@ def step4DownloadParseReport(CRAacc):
             if upload_xml_status==1 and report_xml_status!=2: #就是submission.xml已经提交过去了，但是report还没有成功的状态
                 downcommand=f'ascp -i {sra["key"]} -QT -l300m -k1 {sra["remotepath"]}/{CRAacc}/report.xml {task_path}/'
                 subprocess.Popen(downcommand, shell=True)
-                
                 if os.path.isfile(report_xml)==True:
                     res=ReportXMLStatusCheck(CRAacc)
                     md5=reportMd5(report_xml)
@@ -443,15 +533,22 @@ def step4DownloadParseReport(CRAacc):
                         CRRaccUpdate(CRAacc)
                         sq.updateTASKtable("REPORT_XML_STATUS",2,CRAacc)
                         sq.updateTASKtable("SUBMIT_STATUS",2,CRAacc)
-                        break
+                        sq.updateTASKtable("MODIFY_TIME", current_time, CRAacc)
+                        max_try=0
+                        return {"status":True,"msg":"数据处理成功"}
                     elif res["status"]==False: #sample或project处理失败了。
                         sq.updateTASKtable("REPORT_MD5",md5,CRAacc)
                         sq.updateTASKtable("REPORT_XML_STATUS",3,CRAacc)
                         sq.updateTASKtable("SUBMIT_STATUS",3,CRAacc)
-                        break
+                        sq.updateTASKtable("MODIFY_TIME", current_time, CRAacc)
+                        max_try=0
+                        with open(report_xml) as file:
+                            file_content=file.read()
+                        return {"status":False,"msg":file_content}
                     else:
                         if md5!=report_md5:
                             sq.updateTASKtable("REPORT_MD5",md5,CRAacc)
+                            sq.updateTASKtable("MODIFY_TIME", current_time, CRAacc)
                             time.sleep(6)
                             max_try-=1
                         else:
@@ -462,10 +559,42 @@ def step4DownloadParseReport(CRAacc):
             elif upload_xml_status==0:
                 return {"status":False,"msg":"submission.xml还未提交"}
             elif submit_status==2:
-                return {"status":False,"msg":"数据已提交成功"}
+                return {"status":True,"msg":"数据已提交成功"}
 
-def getStatusByCRAacc(page_number,page_size,sort_value,sort_type):
-    res=sq.fetchfromTASKbyPageSort(page_number,page_size,sort_value,sort_type)
+def getStatusByCRAacc(craacc):
+    result={"is_LOCKED":{"project":{"status":False,"data":""},"sample":{"status":False,"data":""}},
+                 "CRA_ACC":"",
+                 "XML_STATUS":"",
+                 "FQ_STATUS":"",
+                 "UPLOAD_XML":"",
+                 "SUBMIT_STATUS":"",
+                 "REPORT_MD5":"",
+                 "TASK_PATH":"",
+                 "REPORT_XML_STATUS":"",
+                "SUBMIT_TIME":"",
+                 "MODIFY_TIME":""}
+    res=sq.fetchfromTASK(craacc)[0]
+    lock_prj,lock_samc=Prj_SAMC_LOCKacc(craacc)
+    if lock_prj!="":
+        result["is_LOCKED"]["project"]["status"]=True
+        result["is_LOCKED"]["project"]["data"]=lock_prj
+    if len(lock_samc)!=0:
+        result["is_LOCKED"]["sample"]["status"]=True
+        result["is_LOCKED"]["sample"]["data"]=lock_samc
+    result["CRA_ACC"]=res["CRA_ACC"]
+    result["XML_STATUS"]=res["XML_STATUS"]
+    result["FQ_STATUS"]=res["FQ_STATUS"]
+    result["UPLOAD_XML"]=res["UPLOAD_XML"]
+    result["SUBMIT_STATUS"]=res["SUBMIT_STATUS"]
+    result["REPORT_MD5"]=res["REPORT_MD5"]
+    result["TASK_PATH"]=res["TASK_PATH"]
+    result["REPORT_XML_STATUS"]=res["REPORT_XML_STATUS"]
+    result["SUBMIT_TIME"]=res["SUBMIT_TIME"]
+    result["MODIFY_TIME"]=res["MODIFY_TIME"]
+    return result
+
+def getStatusByPageNumber(page_number,page_size,sort_value,sort_type,filter_item,filter_value):
+    res=sq.fetchfromTASKbyPageSort(page_number,page_size,sort_value,sort_type,filter_item,filter_value)
     result=[]
     for i in res:
         eachcra={"is_LOCKED":{"project":{"status":False,"data":""},"sample":{"status":False,"data":""}},
@@ -501,13 +630,14 @@ def getStatusByCRAacc(page_number,page_size,sort_value,sort_type):
     return result
 
 
-        
-
 
 if __name__ == "__main__":
-    # a = InsertData2Sqlite() #step1
-    # GenerateGSA2SRApath("CRA00000112")
-    # a = step1XMLprepare("CRA000018")
+    # a=InsertData2Sqlite() #step1
+    # a=TASKstatus("CRA012728")
+    # a = currenttime()
+
+    # # GenerateGSA2SRApath("CRA00000112")
+    # # a = step1XMLprepare("CRA000018")
     # print(a)
     # step1XMLprepare("CRA012787")  # step2
     # step2fqtransfer("CRA012787")  # step3
@@ -534,10 +664,20 @@ if __name__ == "__main__":
 
     # # test = release_data2SRA[-6:]
     # print(test)
-    idList={'page_number': 1, 'page_size': 2, 'sort_value': '', 'sort_type': ''}
-    page_number=idList["page_number"]
-    page_size=idList["page_size"]
-    sort_value=idList["sort_value"]
-    sort_type=idList["sort_type"]
-    res2=getStatusByCRAacc(page_number,page_size,sort_value,sort_type)
-    print(res2)
+    # idList={'page_number': 1, 'page_size': 2, 'sort_value': '', 'sort_type': ''}
+    # page_number=idList["page_number"]
+    # page_size=idList["page_size"]
+    # sort_value=idList["sort_value"]
+    # sort_type=idList["sort_type"]
+    # res2=getStatusByCRAacc(page_number,page_size,sort_value,sort_type)
+    # print(res2)
+    # eachline={'CRA_ACC': 'CRA010500', 'CRR_ACC': 'CRR727428', 'CRX_ACC': 'CRX652172', 'PRJC_ACC': 'PRJCA015978', 'SAMPLE_type': 'Model organism or animal sample', 'archive_path': '/gsapub3/gsa2/CRA010500', 'SAMC_ACC': 'SAMC1187520'}
+    # sra_samn=sq.fetchSAMNfromCRR(eachline["SAMC_ACC"])
+    # sra_prjna=sq.fetchPRJNAfromCRR(eachline["PRJC_ACC"])
+    # print(sra_samn["SRA_SAMPLE"])
+    # print(sra_prjna["SRA_PRJ_ACC"])
+    # a=ParaseReportXML("CRA010500")
+    # a=ParaseReportXML("CRA012787")
+    # a=ReportXMLStatusCheck("CRA010500")
+    a=step4DownloadParseReport("CRA010500")
+    print(a)

@@ -10,7 +10,7 @@ def UserPackage(name):
     Returns:
         _type_: 返回这个名称的所有信息，可与通过key的方式获取其相关的name等
     """
-    with open('./config.json') as json_file:
+    with open('/workspace/project/GSA/config.json') as json_file:
         config = json.load(json_file)
     return config[name]
 

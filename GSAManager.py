@@ -20,13 +20,20 @@ public_root_dict = UserPackage("public_root_dict")
 archive_root_dict = UserPackage("archive_root_dict")
 
 # 定义一个类，并初始化值，初始化对类执行链接数据库的操作
+from UserPackage import UserPackage
 
+gsaloginfo = UserPackage("gsadb")
+gsahost = gsaloginfo["username"]
+gsaport = gsaloginfo["port"]
+gsausername = gsaloginfo["username"]
+gsapassword = gsaloginfo["password"]
+gsadbname = gsaloginfo["dbname"]
 
 class GSAutilis():
     def __init__(self):
         engine = create_engine(
             # f"mysql+pymysql://{gvar.mysql_username}:{gvar.mysql_pwd}@{gvar.mysql_host}:{gvar.mysql_port}/{gvar.mysql_dbname}?charset=utf8",
-            "mysql+pymysql://gsasunyl:gsasunyl123@192.168.132.11:33067/big_gsav2_20190729_1?charset=utf8",
+            f"mysql+pymysql://{gsausername}:{gsapassword}@{gsahost}:{gsaport}/{gsadbname}?charset=utf8",
             echo=True,  # echo ：为 True 时候会把sql语句打印出来
             max_overflow=999,  # 连接池的大小，为0表示无限制
             pool_pre_ping=True  # 这是1.2新增的参数，如果值为True，那么每次从连接池中拿连接的时候，都会向数据库发送一个类似 select 1 的测试查询语句来判断服务器是否正常运行。当该连接出现 disconnect 的情况时，该连接连同pool中的其它连接都会被回收。
